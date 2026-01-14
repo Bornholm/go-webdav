@@ -1,0 +1,4 @@
+/bin
+/config*.json
+/test
+*.sqlite*

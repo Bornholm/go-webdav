@@ -25,7 +25,7 @@ import (
 var (
 	address     string = ":3000"
 	configFile  string = "config.json"
-	rawLogLevel string = slog.LevelError.String()
+	rawLogLevel string = slog.LevelInfo.String()
 )
 
 func init() {
@@ -82,7 +82,7 @@ func main() {
 	var handler http.Handler = &webdav.Handler{
 		FileSystem: fs,
 		LockSystem: lock.NewSystem(lock.NewMemoryStore()),
-		Prefix:     "/",
+		Prefix:     "",
 		Logger: func(r *http.Request, err error) {
 			if err != nil && !(errors.Is(err, context.Canceled)) {
 				slog.ErrorContext(r.Context(), err.Error(), slog.Any("error", errors.WithStack(err)))

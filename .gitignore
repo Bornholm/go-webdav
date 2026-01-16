@@ -2,3 +2,5 @@
 /config*.json
 /test
 *.sqlite*
+/tools
+/dist

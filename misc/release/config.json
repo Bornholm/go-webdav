@@ -1,0 +1,8 @@
+{
+  "filesystem": {
+    "type": "local",
+    "options": {
+      "dir": "/data"
+    }
+  }
+}

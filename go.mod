@@ -4,6 +4,7 @@ go 1.25.1
 
 require (
 	github.com/bornholm/calli v0.1.0
+	github.com/caarlos0/env/v11 v11.3.1
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/expr-lang/expr v1.17.5
 	github.com/go-viper/mapstructure/v2 v2.4.0
@@ -20,7 +21,6 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/caarlos0/env/v11 v11.3.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect

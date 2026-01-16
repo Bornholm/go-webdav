@@ -55,7 +55,7 @@ func (f *FileSystem) Mkdir(ctx context.Context, name string, perm os.FileMode) e
 
 // OpenFile implements webdav.FileSystem.
 func (f *FileSystem) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
-	key := clean(name)
+	name = clean(name)
 
 	isCreate := flag&os.O_CREATE != 0
 
@@ -71,7 +71,7 @@ func (f *FileSystem) OpenFile(ctx context.Context, name string, flag int, perm o
 			ctx:        ctx,
 			fs:         f,
 			name:       name,
-			key:        key,
+			key:        name,
 			isWriter:   true,
 			pipeWriter: pw,
 			done:       make(chan error, 1),
@@ -79,7 +79,7 @@ func (f *FileSystem) OpenFile(ctx context.Context, name string, flag int, perm o
 
 		go func() {
 			defer close(file.done)
-			_, err := f.client.PutObject(ctx, f.bucket, key, pr, -1, minio.PutObjectOptions{
+			_, err := f.client.PutObject(ctx, f.bucket, name, pr, -1, minio.PutObjectOptions{
 				ContentType: "application/octet-stream",
 				PartSize:    5 * 1024 * 1024,
 			})
@@ -90,18 +90,30 @@ func (f *FileSystem) OpenFile(ctx context.Context, name string, flag int, perm o
 		return file, nil
 	}
 
-	obj, err := f.client.GetObject(ctx, f.bucket, key, minio.GetObjectOptions{})
+	// If name == "/" (root directory)
+	if name == separator {
+		return &File{
+			ctx:   ctx,
+			fs:    f,
+			name:  name,
+			key:   name,
+			isDir: true,
+		}, nil
+	}
+
+	obj, err := f.client.GetObject(ctx, f.bucket, name, minio.GetObjectOptions{})
 	if err == nil {
+
 		info, err := obj.Stat()
 		if err == nil {
-			isDirMarker := strings.HasSuffix(key, "/") || info.ContentType == "application/x-directory"
+			isDirMarker := strings.HasSuffix(name, "/") || info.ContentType == "application/x-directory"
 
 			if isDirMarker {
 				return &File{
 					ctx:   ctx,
 					fs:    f,
 					name:  name,
-					key:   key,
+					key:   name,
 					isDir: true,
 				}, nil
 			}
@@ -110,7 +122,7 @@ func (f *FileSystem) OpenFile(ctx context.Context, name string, flag int, perm o
 				ctx:      ctx,
 				fs:       f,
 				name:     name,
-				key:      key,
+				key:      name,
 				isWriter: false,
 				obj:      obj,
 			}, nil
@@ -122,7 +134,7 @@ func (f *FileSystem) OpenFile(ctx context.Context, name string, flag int, perm o
 		}
 	}
 
-	dirKey := key
+	dirKey := name
 	if !strings.HasSuffix(dirKey, "/") {
 		dirKey += "/"
 	}
@@ -144,7 +156,7 @@ func (f *FileSystem) OpenFile(ctx context.Context, name string, flag int, perm o
 			ctx:   ctx,
 			fs:    f,
 			name:  name,
-			key:   key, // Keep original key name (e.g. without trailing slash if requested so)
+			key:   name, // Keep original key name (e.g. without trailing slash if requested so)
 			isDir: true,
 		}, nil
 	}

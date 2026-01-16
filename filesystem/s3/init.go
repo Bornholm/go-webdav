@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/bornholm/go-webdav/filesystem"
+	"github.com/go-playground/validator/v10"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -18,12 +19,12 @@ func init() {
 }
 
 type Options struct {
-	Endpoint     string `mapstructure:"endpoint" `
-	User         string `mapstructure:"user" `
+	Endpoint     string `mapstructure:"endpoint" validate:"required"`
+	User         string `mapstructure:"user"`
 	Secret       string `mapstructure:"secret"`
 	Token        string `mapstructure:"token" `
 	Secure       bool   `mapstructure:"secure"`
-	Bucket       string `mapstructure:"bucket"`
+	Bucket       string `mapstructure:"bucket" validate:"required"`
 	Region       string `mapstructure:"region"`
 	BucketLookup string `mapstructure:"bucketLookup"`
 	// Enable/disable HTTP tracing in the console
@@ -35,6 +36,11 @@ func CreateFileSystemFromOptions(options any) (webdav.FileSystem, error) {
 
 	if err := mapstructure.Decode(options, &opts); err != nil {
 		return nil, errors.Wrapf(err, "could not parse '%s' filesystem options", Type)
+	}
+
+	validate := validator.New()
+	if err := validate.Struct(&opts); err != nil {
+		return nil, errors.Wrap(err, "could not validate s3 filesystem options")
 	}
 
 	creds := credentials.NewStaticV4(opts.User, opts.Secret, opts.Token)

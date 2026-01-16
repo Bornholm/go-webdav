@@ -3,11 +3,13 @@ package main
 import (
 	"encoding"
 	"encoding/json"
+	"time"
 )
 
 type config struct {
 	Auth       authConfig       `json:"auth" envPrefix:"AUTH_"`
 	Filesystem filesystemConfig `json:"filesystem" envPrefix:"FILESYSTEM_"`
+	Cache      cacheConfig      `json:"cache" envPrefix:"CACHE_"`
 }
 
 type authConfig struct {
@@ -16,8 +18,13 @@ type authConfig struct {
 }
 
 type filesystemConfig struct {
-	Type    string   `json:"type" env:"TYPE,expand"`
+	Type    string   `json:"type" env:"TYPE,expand" validate:"required,oneof=local sqlite s3"`
 	Options *rawJSON `json:"options" env:"OPTIONS,expand"`
+}
+
+type cacheConfig struct {
+	Enabled bool          `json:"enabled" env:"ENABLED" envDefault:"true"`
+	TTL     time.Duration `json:"ttl" env:"TTL" envDefault:"1h"`
 }
 
 type rawJSON struct {

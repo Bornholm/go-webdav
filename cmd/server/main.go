@@ -20,6 +20,8 @@ import (
 	"golang.org/x/net/webdav"
 
 	_ "github.com/bornholm/go-webdav/filesystem/all"
+	"github.com/bornholm/go-webdav/filesystem/cache"
+	"github.com/go-playground/validator/v10"
 )
 
 var (
@@ -68,6 +70,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	validate := validator.New()
+	if err := validate.StructCtx(ctx, &conf); err != nil {
+		slog.ErrorContext(ctx, "could not validate config", slog.Any("error", errors.WithStack(err)))
+		os.Exit(1)
+	}
+
 	slog.InfoContext(ctx, "creating filesystem", "type", conf.Filesystem.Type)
 
 	fs, err := filesystem.New(filesystem.Type(conf.Filesystem.Type), conf.Filesystem.Options.Value)
@@ -77,6 +85,12 @@ func main() {
 	}
 
 	fs = wd.WithLogger(fs, slog.Default())
+
+	if conf.Cache.Enabled {
+		slog.InfoContext(ctx, "enabling metadata cache", "ttl", conf.Cache.TTL)
+		fs = cache.NewFileSystem(fs, cache.NewMemoryStore(conf.Cache.TTL))
+	}
+
 	fs = deadprops.Wrap(fs, deadprops.NewMemStore())
 
 	var handler http.Handler = &webdav.Handler{

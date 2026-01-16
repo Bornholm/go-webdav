@@ -24,6 +24,7 @@ func readdir(ctx context.Context, client *minio.Client, bucket string, name stri
 	opts := minio.ListObjectsOptions{
 		Prefix:    prefix,
 		Recursive: false,
+		MaxKeys:   1024,
 	}
 
 	ch := client.ListObjects(ctx, bucket, opts)

@@ -2,25 +2,29 @@ package cache
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path"
 	"strings"
 
 	"github.com/minio/minio-go/v7/pkg/singleflight"
+	"github.com/pkg/errors"
 	"golang.org/x/net/webdav"
 )
 
 type FileSystem struct {
-	backend          webdav.FileSystem
-	store            Store
-	statSingleFlight *singleflight.Group[string, os.FileInfo]
+	backend             webdav.FileSystem
+	store               Store
+	statSingleFlight    *singleflight.Group[string, os.FileInfo]
+	readdirSingleFlight *singleflight.Group[string, []os.FileInfo]
 }
 
 func NewFileSystem(backend webdav.FileSystem, store Store) *FileSystem {
 	return &FileSystem{
-		backend:          backend,
-		store:            store,
-		statSingleFlight: &singleflight.Group[string, os.FileInfo]{},
+		backend:             backend,
+		store:               store,
+		statSingleFlight:    &singleflight.Group[string, os.FileInfo]{},
+		readdirSingleFlight: &singleflight.Group[string, []os.FileInfo]{},
 	}
 }
 
@@ -46,11 +50,7 @@ func (fs *FileSystem) OpenFile(ctx context.Context, name string, flag int, perm 
 		return nil, err
 	}
 
-	if isWrite {
-		return &fileWrapper{ctx: ctx, file: f, fs: fs, name: name}, nil
-	}
-
-	return f, nil
+	return &fileWrapper{ctx: ctx, file: f, fs: fs, name: name, isWrite: isWrite}, nil
 }
 
 func (fs *FileSystem) RemoveAll(ctx context.Context, name string) error {
@@ -89,6 +89,30 @@ func (fs *FileSystem) Stat(ctx context.Context, name string) (os.FileInfo, error
 
 	if err := fs.store.Put(ctx, name, info); err != nil {
 		return nil, err
+	}
+
+	// Pre-populate cache with directory listing
+	if info.IsDir() {
+		go func() {
+			ctx = context.Background()
+
+			dir, err := fs.OpenFile(ctx, name, os.O_RDONLY, os.ModePerm)
+			if err != nil {
+				slog.ErrorContext(ctx, "could not open directory", "error", errors.WithStack(err))
+				return
+			}
+
+			defer dir.Close()
+
+			slog.DebugContext(ctx, "pre-populating directory listing cache", "name", name)
+
+			if _, err := dir.Readdir(0); err != nil {
+				slog.ErrorContext(ctx, "could not read directory", "error", errors.WithStack(err))
+				return
+			}
+
+			slog.DebugContext(ctx, "directory cache populated", "name", name)
+		}()
 	}
 
 	return info, nil

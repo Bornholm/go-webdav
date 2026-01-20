@@ -52,7 +52,7 @@ func (fs *Filesystem) Stat(ctx context.Context, name string) (os.FileInfo, error
 
 var _ webdav.FileSystem = &Filesystem{}
 
-func Wrap(backend webdav.FileSystem, store Store) *Filesystem {
+func NewFileSystem(backend webdav.FileSystem, store Store) *Filesystem {
 	return &Filesystem{
 		store:   store,
 		backend: backend,

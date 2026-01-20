@@ -9,18 +9,19 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 
-	wd "github.com/bornholm/go-webdav"
-	"github.com/bornholm/go-webdav/deadprops"
+	"github.com/bornholm/go-webdav"
 	"github.com/bornholm/go-webdav/filesystem"
-	"github.com/bornholm/go-webdav/lock"
+	webdavHandler "github.com/bornholm/go-webdav/handler"
+	"github.com/bornholm/go-webdav/middleware/cache"
+	"github.com/bornholm/go-webdav/middleware/deadprops"
+	"github.com/bornholm/go-webdav/middleware/logger"
 	"github.com/caarlos0/env/v11"
 	"github.com/pkg/errors"
 	sloghttp "github.com/samber/slog-http"
-	"golang.org/x/net/webdav"
 
 	_ "github.com/bornholm/go-webdav/filesystem/all"
-	"github.com/bornholm/go-webdav/filesystem/cache"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -84,26 +85,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	fs = wd.WithLogger(fs, slog.Default())
+	middlewares := []webdav.Middleware{
+		logger.Middleware(slog.Default()),
+	}
 
 	if conf.Cache.Enabled {
 		slog.InfoContext(ctx, "enabling metadata cache", "ttl", conf.Cache.TTL)
-		fs = cache.NewFileSystem(fs, cache.NewMemoryStore(conf.Cache.TTL))
+		cacheStore := cache.NewMemoryStore(conf.Cache.TTL)
+		middlewares = append(middlewares, cache.Middleware(cacheStore))
 	}
 
-	fs = deadprops.Wrap(fs, deadprops.NewMemStore())
+	middlewares = append(middlewares, deadprops.Middleware(deadprops.NewMemStore()))
 
-	var handler http.Handler = &webdav.Handler{
-		FileSystem: fs,
-		LockSystem: lock.NewSystem(lock.NewMemoryStore()),
-		Prefix:     "",
-		Logger: func(r *http.Request, err error) {
-			if err != nil && !(errors.Is(err, context.Canceled)) {
-				slog.ErrorContext(r.Context(), err.Error(), slog.Any("error", errors.WithStack(err)))
-				return
-			}
-		},
-	}
+	var handler http.Handler = webdavHandler.New(
+		fs,
+		webdavHandler.WithMiddlewares(middlewares...),
+	)
 
 	slogMiddleware := sloghttp.New(slog.Default())
 	handler = slogMiddleware(handler)
@@ -111,6 +108,26 @@ func main() {
 	if conf.Auth.Enabled && len(conf.Auth.Users) > 0 {
 		slog.InfoContext(ctx, "enabling basic auth", "total_users", len(conf.Auth.Users))
 		handler = basicAuth(handler, "go-webdav", conf.Auth.Users)
+	}
+
+	if conf.MDNS.Enabled {
+		_, rawPort, err := net.SplitHostPort(address)
+		if err != nil {
+			slog.ErrorContext(ctx, "could not parse listening address", slog.Any("error", errors.WithStack(err)))
+			os.Exit(1)
+		}
+
+		port, err := strconv.ParseInt(rawPort, 10, 32)
+		if err != nil {
+			slog.ErrorContext(ctx, "could not parse listening port", slog.Any("error", errors.WithStack(err)))
+			os.Exit(1)
+		}
+
+		slog.InfoContext(ctx, "enabling mdns announce", "port", port)
+		if err := startAnnouncingService(ctx, int(port)); err != nil {
+			slog.ErrorContext(ctx, "could not announce service", slog.Any("error", errors.WithStack(err)))
+			os.Exit(1)
+		}
 	}
 
 	server := &http.Server{
@@ -136,16 +153,20 @@ func basicAuth(handler http.Handler, realm string, users map[string]string) http
 		unauthorized := func() {
 			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
 			w.WriteHeader(401)
-			w.Write([]byte("Unauthorised.\n"))
+			w.Write([]byte(http.StatusText(http.StatusUnauthorized)))
 		}
 
-		_, exists := users[user]
-		if !exists {
-			unauthorized()
-			return
+		username := user
+		password, exists := users[user]
+		if !exists { // Prevent timing attack
+			username = "dummy"
+			password = "dummy"
 		}
 
-		if !ok || subtle.ConstantTimeCompare([]byte(pass), []byte(users[user])) != 1 {
+		isPasswordOK := subtle.ConstantTimeCompare([]byte(pass), []byte(password)) == 1
+		isUsernameOK := subtle.ConstantTimeCompare([]byte(user), []byte(username)) == 1
+
+		if !exists || !ok || !isPasswordOK || !isUsernameOK {
 			unauthorized()
 			return
 		}

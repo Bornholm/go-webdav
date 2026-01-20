@@ -16,8 +16,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 	"golang.org/x/net/webdav"
 
-	"github.com/bornholm/go-webdav/deadprops"
-	"github.com/bornholm/go-webdav/lock"
+	"github.com/bornholm/go-webdav/handler"
 )
 
 type testLogConsumer struct {
@@ -38,19 +37,7 @@ func RunTestSuite(t *testing.T, fs webdav.FileSystem) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	fs = deadprops.Wrap(fs, deadprops.NewMemStore())
-
-	handler := &webdav.Handler{
-		FileSystem: fs,
-		LockSystem: lock.NewSystem(lock.NewMemoryStore()),
-		Prefix:     "/",
-		Logger: func(r *http.Request, err error) {
-			if err != nil && !(errors.Is(err, os.ErrNotExist) || errors.Is(err, context.Canceled)) {
-				t.Logf("[ERROR] %s %s - %s", r.Method, r.URL.Path, err)
-				return
-			}
-		},
-	}
+	handler := handler.New(fs)
 
 	listener, err := net.Listen("tcp", "127.0.0.1:")
 	if err != nil {

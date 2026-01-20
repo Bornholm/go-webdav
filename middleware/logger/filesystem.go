@@ -1,4 +1,4 @@
-package webdav
+package logger
 
 import (
 	"context"
@@ -43,7 +43,7 @@ func (fs *LoggerFilesystem) Stat(ctx context.Context, name string) (os.FileInfo,
 	return fs.backend.Stat(ctx, name)
 }
 
-func WithLogger(backend webdav.FileSystem, logger *slog.Logger) *LoggerFilesystem {
+func NewFileSystem(backend webdav.FileSystem, logger *slog.Logger) *LoggerFilesystem {
 	return &LoggerFilesystem{
 		backend: backend,
 		logger:  logger,

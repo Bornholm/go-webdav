@@ -18,7 +18,22 @@ A WebDAV server implementation in Go with support for multiple storage backends 
 
 ### As a library
 
-> TODO
+```go
+package main
+
+import (
+  "github.com/bornholm/go-webdav/handler"
+  "github.com/bornholm/go-webdav/filesystem/local"
+)
+
+fs := local.NewFileSystem("my/dir")
+
+h := handler.New(fs)
+
+if err := http.ListenAndServe(":8080", handler); err != nil {
+  panic(err)
+}
+```
 
 ### As a server
 
@@ -73,6 +88,13 @@ The server can be configured via a JSON configuration file and/or environment va
     "options": {
       "dir": "/data/webdav"
     }
+  },
+  "cache": {
+    "enabled": true,
+    "ttl": "1h"
+  },
+  "mdns": {
+    "enabled": true
   },
   "auth": {
     "enabled": true,
@@ -159,12 +181,14 @@ Stores files in a SQLite database. Useful for embedded deployments or when a sin
 
 #### Environment Variables
 
-All configuration options can be set via environment variables with the `GOWEBDAV_` prefix. Nested options use underscores as separators.
+Some configuration options can be set via environment variables with the `GOWEBDAV_` prefix. Nested options use underscores as separators.
 
 Examples:
 
 - `GOWEBDAV_FILESYSTEM_TYPE=local`
 - `GOWEBDAV_FILESYSTEM_OPTIONS='{"dir":"/dir/path"}'`
+
+See [`./cmd/server/config.go`](./cmd/server/config.go) for more informations.
 
 ## Development
 
@@ -182,4 +206,4 @@ make benchmark
 
 ## License
 
-See [LICENSE](./LICENCEq) file for details.
+See [LICENSE](./LICENCE) file for details.

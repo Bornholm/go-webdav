@@ -10,6 +10,7 @@ type config struct {
 	Auth       authConfig       `json:"auth" envPrefix:"AUTH_"`
 	Filesystem filesystemConfig `json:"filesystem" envPrefix:"FILESYSTEM_"`
 	Cache      cacheConfig      `json:"cache" envPrefix:"CACHE_"`
+	MDNS       mdnsConfig       `json:"mdns" envPrefix:"MDNS_"`
 }
 
 type authConfig struct {
@@ -25,6 +26,10 @@ type filesystemConfig struct {
 type cacheConfig struct {
 	Enabled bool          `json:"enabled" env:"ENABLED" envDefault:"true"`
 	TTL     time.Duration `json:"ttl" env:"TTL" envDefault:"1h"`
+}
+
+type mdnsConfig struct {
+	Enabled bool `json:"enabled" env:"ENABLED" envDefault:"true"`
 }
 
 type rawJSON struct {
